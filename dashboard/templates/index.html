@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - XP Bot{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Quest Statistics Dashboard</h1>
+    <p class="subtitle">Overview of all quests, participants, and DMs</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_quests }}</div>
+        <div class="stat-label">Total Quests</div>
+    </div>
+
+    <div class="stat-card active">
+        <div class="stat-value">{{ stats.active_quests }}</div>
+        <div class="stat-label">Active Quests</div>
+    </div>
+
+    <div class="stat-card completed">
+        <div class="stat-value">{{ stats.completed_quests }}</div>
+        <div class="stat-label">Completed Quests</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_participants }}</div>
+        <div class="stat-label">Total Characters</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_dms }}</div>
+        <div class="stat-label">Total DMs</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-value">{{ "%.1f"|format(stats.avg_participants_per_quest) }}</div>
+        <div class="stat-label">Avg. Party Size</div>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Quest Distribution by Level Bracket</h2>
+    <div class="chart-container">
+        <canvas id="levelBracketChart"></canvas>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Top DMs by Quest Count</h2>
+    {% if dm_stats %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>DM User ID</th>
+                    <th>Total Quests</th>
+                    <th>As Primary DM</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dm in dm_stats %}
+                <tr>
+                    <td><code>{{ dm.user_id }}</code></td>
+                    <td>{{ dm.quest_count }}</td>
+                    <td>{{ dm.primary_dm_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty-state">No DM data available yet.</p>
+    {% endif %}
+</div>
+
+<div class="section">
+    <h2>Quick Links</h2>
+    <div class="quick-links">
+        <a href="/quests" class="btn btn-primary">View All Quests</a>
+        <a href="/quests?status=active" class="btn btn-success">Active Quests</a>
+        <a href="/quests?status=completed" class="btn btn-secondary">Completed Quests</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    // Fetch and display level bracket distribution
+    fetch('/api/quests')
+        .then(response => response.json())
+        .then(quests => {
+            // Count quests by level bracket
+            const bracketCounts = {};
+            quests.forEach(quest => {
+                const bracket = quest.level_bracket || 'Unknown';
+                bracketCounts[bracket] = (bracketCounts[bracket] || 0) + 1;
+            });
+
+            // Create chart
+            const ctx = document.getElementById('levelBracketChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(bracketCounts).sort(),
+                    datasets: [{
+                        label: 'Number of Quests',
+                        data: Object.keys(bracketCounts).sort().map(k => bracketCounts[k]),
+                        backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        });
+</script>
+{% endblock %}

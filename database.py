@@ -674,7 +674,7 @@ class Database:
     # ==================== QUEST METHODS ====================
 
     async def create_quest(self, guild_id: int, name: str, quest_type: str,
-                          level_bracket: str, start_date: date, primary_dm_user_id: int) -> int:
+                          level_bracket: str, start_date: date, primary_dm_user_id: int, primary_dm_username: str = None) -> int:
         """Create a new quest and return its ID"""
         async with self.pool.acquire() as conn:
             async with conn.transaction():
@@ -687,9 +687,9 @@ class Database:
 
                 # Add primary DM
                 await conn.execute("""
-                    INSERT INTO quest_dms (quest_id, user_id, is_primary)
-                    VALUES ($1, $2, TRUE)
-                """, quest_id, primary_dm_user_id)
+                    INSERT INTO quest_dms (quest_id, user_id, username, is_primary)
+                    VALUES ($1, $2, $3, TRUE)
+                """, quest_id, primary_dm_user_id, primary_dm_username)
 
                 logger.info(f"Created quest '{name}' (ID: {quest_id}) for guild {guild_id}")
                 return quest_id
@@ -714,14 +714,56 @@ class Database:
             # result is like "DELETE N" where N is the number of rows deleted
             return result == "DELETE 1"
 
-    async def add_quest_dm(self, quest_id: int, user_id: int, is_primary: bool = False):
+    async def add_quest_dm(self, quest_id: int, user_id: int, username: str = None, is_primary: bool = False):
         """Add a DM to a quest"""
         async with self.pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO quest_dms (quest_id, user_id, is_primary)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (quest_id, user_id) DO NOTHING
-            """, quest_id, user_id, is_primary)
+                INSERT INTO quest_dms (quest_id, user_id, username, is_primary)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (quest_id, user_id) DO UPDATE SET username = EXCLUDED.username
+            """, quest_id, user_id, username, is_primary)
+
+    async def set_dm_profile(self, user_id: int, preferred_dm_name: str):
+        """Set or update a DM's preferred display name and update all quest assignments"""
+        async with self.pool.acquire() as conn:
+            # Update or create the DM profile
+            await conn.execute("""
+                INSERT INTO dm_profiles (user_id, preferred_dm_name)
+                VALUES ($1, $2)
+                ON CONFLICT (user_id) DO UPDATE SET preferred_dm_name = EXCLUDED.preferred_dm_name
+            """, user_id, preferred_dm_name)
+
+            # Update all existing quest_dms records to reflect the new name
+            await conn.execute("""
+                UPDATE quest_dms
+                SET username = $2
+                WHERE user_id = $1
+            """, user_id, preferred_dm_name)
+
+    async def get_dm_profile(self, user_id: int) -> Optional[Dict]:
+        """Get a DM's profile"""
+        async with self.pool.acquire() as conn:
+            result = await conn.fetchrow("""
+                SELECT * FROM dm_profiles WHERE user_id = $1
+            """, user_id)
+            return dict(result) if result else None
+
+    async def update_quest_dm_name(self, quest_id: int, user_id: int, new_name: str):
+        """Update a DM's global profile name (updates all their quest assignments)"""
+        async with self.pool.acquire() as conn:
+            # Update or create the DM profile
+            await conn.execute("""
+                INSERT INTO dm_profiles (user_id, preferred_dm_name)
+                VALUES ($1, $2)
+                ON CONFLICT (user_id) DO UPDATE SET preferred_dm_name = EXCLUDED.preferred_dm_name
+            """, user_id, new_name)
+
+            # Update all quest_dms records for this DM
+            await conn.execute("""
+                UPDATE quest_dms
+                SET username = $1
+                WHERE user_id = $2
+            """, new_name, user_id)
 
     async def get_quest(self, quest_id: int) -> Optional[Dict]:
         """Get quest details by ID"""

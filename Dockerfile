@@ -9,9 +9,11 @@ RUN apt-get update && apt-get install -y tzdata && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy bot code
+# Copy bot code and dashboard
 COPY . .
 
-CMD ["watchmedo", "auto-restart", "--ignore-patterns=*.pyc;__pycache__", "--directory=.", "--pattern=*.py", "--recursive", "--", "python", "bot.py"]
-
+# Set Python unbuffered mode
 ENV PYTHONUNBUFFERED=1
+
+# Default command runs the bot, but can be overridden
+CMD ["python", "-u", "bot.py"]

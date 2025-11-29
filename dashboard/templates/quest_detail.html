@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}{{ quest.name }} - XP Bot{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="header-actions">
+        <a href="/quests" style="text-decoration: none; color: var(--text-secondary);">&larr; Back to Quests</a>
+    </div>
+    <h1>{{ quest.name }}</h1>
+    <div class="quest-meta">
+        <span class="badge badge-{{ quest.status }}">{{ quest.status.capitalize() }}</span>
+        <span class="badge badge-level">Level {{ quest.level_bracket }}</span>
+        <span class="badge">{{ quest.quest_type }}</span>
+    </div>
+</div>
+
+<div class="quest-details">
+    <div class="detail-grid">
+        <div class="detail-card">
+            <h3>Quest Information</h3>
+            <dl class="detail-list">
+                <dt>Quest ID</dt>
+                <dd>#{{ quest.id }}</dd>
+
+                <dt>Status</dt>
+                <dd><span class="badge badge-{{ quest.status }}">{{ quest.status.capitalize() }}</span></dd>
+
+                <dt>Type</dt>
+                <dd>{{ quest.quest_type }}</dd>
+
+                <dt>Level Bracket</dt>
+                <dd>{{ quest.level_bracket }}</dd>
+
+                <dt>Start Date</dt>
+                <dd>{{ quest.start_date.strftime('%B %d, %Y') if quest.start_date else 'Not set' }}</dd>
+
+                <dt>End Date</dt>
+                <dd>{{ quest.end_date.strftime('%B %d, %Y') if quest.end_date else 'Ongoing' }}</dd>
+
+                {% if quest.end_date and quest.start_date %}
+                <dt>Duration</dt>
+                <dd>{{ (quest.end_date - quest.start_date).days }} days</dd>
+                {% endif %}
+
+                <dt>Created</dt>
+                <dd>{{ quest.created_at.strftime('%B %d, %Y at %I:%M %p') if quest.created_at else '-' }}</dd>
+            </dl>
+        </div>
+
+        <div class="detail-card">
+            <h3>Participants ({{ quest.participants|length }})</h3>
+            {% if quest.participants %}
+            <div class="participant-list">
+                {% for participant in quest.participants %}
+                <div class="participant-item">
+                    <div class="participant-info">
+                        <strong>{{ participant.character_name }}</strong>
+                        <small>User ID: {{ participant.user_id }}</small>
+                    </div>
+                    <div class="participant-stats">
+                        <span class="stat">Level {{ participant.starting_level }}</span>
+                        <span class="stat">{{ participant.starting_xp }} XP</span>
+                    </div>
+                    <div class="participant-date">
+                        Joined: {{ participant.joined_at.strftime('%Y-%m-%d') if participant.joined_at else '-' }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state-small">No participants yet.</p>
+            {% endif %}
+        </div>
+
+        <div class="detail-card">
+            <h3>Dungeon Masters ({{ quest.dms|length }})</h3>
+            {% if quest.dms %}
+            <div class="dm-list">
+                {% for dm in quest.dms %}
+                <div class="dm-item" data-dm-id="{{ dm.dm_user_id }}">
+                    <div class="dm-info">
+                        <strong class="dm-display-name">{{ dm.username or 'User ID: ' + dm.dm_user_id|string }}</strong>
+                        {% if dm.is_primary %}
+                        <span class="badge badge-primary">Primary DM</span>
+                        {% endif %}
+                        <button class="edit-dm-name" data-quest-id="{{ quest.id }}" data-user-id="{{ dm.dm_user_id }}" data-current-name="{{ dm.username or '' }}" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; padding: 0.25rem 0.5rem; color: var(--text-secondary);" title="Edit DM Profile">✏️</button>
+                    </div>
+                    {% if dm.username %}
+                    <div class="participant-stats">
+                        <span class="stat">User ID: {{ dm.dm_user_id }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="dm-date">
+                        Joined: {{ dm.joined_at.strftime('%Y-%m-%d') if dm.joined_at else '-' }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-state-small">No DMs assigned.</p>
+            {% endif %}
+        </div>
+
+        <div class="detail-card detail-card-wide">
+            <h3>Encounter XP</h3>
+            {% if quest.monsters %}
+            <div class="table-responsive">
+                <table class="data-table compact">
+                    <thead>
+                        <tr>
+                            <th>Monster</th>
+                            <th>CR</th>
+                            <th>Count</th>
+                            <th>Individual XP</th>
+                            <th>Total XP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for monster in quest.monsters %}
+                        {% set individual_xp = monster.cr|cr_to_xp %}
+                        {% set total_xp = individual_xp * monster.count %}
+                        <tr>
+                            <td>{{ monster.monster_name or 'Unnamed Encounter' }}</td>
+                            <td><span class="badge">CR {{ monster.cr }}</span></td>
+                            <td>{{ monster.count }}</td>
+                            <td>{{ "{:,}".format(individual_xp) }} XP</td>
+                            <td><strong>{{ "{:,}".format(total_xp) }} XP</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="4" style="text-align: right; font-weight: 600;">Total Quest XP:</td>
+                            <td>
+                                <strong>
+                                {% set ns = namespace(total=0) %}
+                                {% for monster in quest.monsters %}
+                                    {% set ns.total = ns.total + (monster.cr|cr_to_xp * monster.count) %}
+                                {% endfor %}
+                                {{ "{:,}".format(ns.total) }} XP
+                                </strong>
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {% else %}
+            <p class="empty-state-small">No encounters recorded.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Handle DM profile editing
+document.querySelectorAll('.edit-dm-name').forEach(button => {
+    button.addEventListener('click', async function() {
+        const questId = this.dataset.questId;
+        const userId = this.dataset.userId;
+        const currentName = this.dataset.currentName;
+
+        // Warn user that this is a global change
+        if (!confirm('This will update the DM\'s name for ALL quests (past and present).\n\nDo you want to continue?')) {
+            return;
+        }
+
+        const newName = prompt('Enter new DM profile name:', currentName);
+
+        if (newName === null || newName.trim() === '') {
+            return; // User cancelled or entered empty name
+        }
+
+        try {
+            const response = await fetch(`/api/quest/${questId}/dm/${userId}/update_name`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name: newName.trim() })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Update all DM display names for this user on the page
+                document.querySelectorAll(`.dm-item[data-dm-id="${userId}"] .dm-display-name`).forEach(el => {
+                    el.textContent = data.name;
+                });
+
+                // Update all edit buttons for this user
+                document.querySelectorAll(`.edit-dm-name[data-user-id="${userId}"]`).forEach(btn => {
+                    btn.dataset.currentName = data.name;
+                });
+
+                alert('DM profile updated successfully!\n\nThis name will now appear on all quests where this DM is assigned.');
+            } else {
+                alert('Error: ' + (data.error || 'Failed to update name'));
+            }
+        } catch (error) {
+            alert('Error updating DM profile: ' + error.message);
+        }
+    });
+});
+</script>
+
+{% endblock %}

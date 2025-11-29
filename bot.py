@@ -51,6 +51,7 @@ from commands.character import setup_character_commands
 from commands.admin import setup_admin_commands
 from commands.info import setup_info_commands
 from commands.quest import setup_quest_commands
+from commands.dm_profile import setup_dm_profile_commands
 
 # Setup handlers and commands
 setup_events(bot, db, GUILD_ID)
@@ -59,6 +60,7 @@ setup_character_commands(bot, db, GUILD_ID)
 setup_admin_commands(bot, db, GUILD_ID)
 setup_info_commands(bot, db, GUILD_ID)
 setup_quest_commands(bot, db, GUILD_ID)
+setup_dm_profile_commands(bot, db, GUILD_ID)
 
 logger.info("All commands and handlers registered")
 

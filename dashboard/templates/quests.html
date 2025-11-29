@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Quests - XP Bot{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Quest List</h1>
+    <p class="subtitle">Browse and filter all quests</p>
+</div>
+
+<div class="filters">
+    <form method="get" action="/quests" class="filter-form">
+        <div class="filter-group">
+            <label for="status">Status</label>
+            <select name="status" id="status">
+                <option value="">All Statuses</option>
+                <option value="active" {% if current_status == 'active' %}selected{% endif %}>Active</option>
+                <option value="completed" {% if current_status == 'completed' %}selected{% endif %}>Completed</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="level_bracket">Level Bracket</label>
+            <select name="level_bracket" id="level_bracket">
+                <option value="">All Levels</option>
+                {% for bracket in level_brackets %}
+                <option value="{{ bracket }}" {% if current_level_bracket == bracket %}selected{% endif %}>{{ bracket }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Apply Filters</button>
+            <a href="/quests" class="btn btn-secondary">Clear</a>
+        </div>
+    </form>
+</div>
+
+<div class="section">
+    <div class="section-header">
+        <h2>Quests ({{ quests|length }})</h2>
+    </div>
+
+    {% if quests %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Quest Name</th>
+                    <th>Type</th>
+                    <th>Level</th>
+                    <th>Status</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Duration</th>
+                    <th>PCs</th>
+                    <th>DMs</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for quest in quests %}
+                <tr>
+                    <td class="quest-name">
+                        <a href="/quest/{{ quest.id }}">{{ quest.name }}</a>
+                    </td>
+                    <td>{{ quest.quest_type }}</td>
+                    <td><span class="badge badge-level">{{ quest.level_bracket }}</span></td>
+                    <td>
+                        <span class="badge badge-{{ quest.status }}">
+                            {{ quest.status.capitalize() }}
+                        </span>
+                    </td>
+                    <td>{{ quest.start_date.strftime('%Y-%m-%d') if quest.start_date else '-' }}</td>
+                    <td>{{ quest.end_date.strftime('%Y-%m-%d') if quest.end_date else '-' }}</td>
+                    <td class="text-center">
+                        {% if quest.end_date and quest.start_date %}
+                            {{ (quest.end_date - quest.start_date).days }} days
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td class="text-center">{{ quest.participant_count }}</td>
+                    <td>
+                        {% if quest.dm_usernames %}
+                            {% for dm_username in quest.dm_usernames %}
+                                <code class="dm-id">{{ dm_username }}</code>{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No quests found matching your filters.</p>
+        <a href="/quests" class="btn btn-primary">Clear Filters</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

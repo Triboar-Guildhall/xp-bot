@@ -8,7 +8,7 @@ kill_signal = "SIGINT"
 kill_timeout = 10
 
 [build]
-  dockerfile = "Dockerfile.prod"
+  dockerfile = "Dockerfile"
 
 [env]
   ENV = "prod"

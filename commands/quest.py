@@ -10,6 +10,7 @@ from typing import Optional, List
 from utils.xp import get_level_and_progress
 from utils.quest_xp import calculate_quest_xp
 from ui.quest_view import QuestEndConfirmView, QuestDeleteConfirmView
+from ui.dm_name_modal import DMNameModal
 
 logger = logging.getLogger('xp-bot')
 
@@ -183,15 +184,20 @@ def setup_quest_commands(bot, db, guild_id):
         # Determine primary DM (default to current user)
         dm_user = primary_dm if primary_dm else interaction.user
 
+        # Get DM's profile or use their Discord username
+        dm_profile = await db.get_dm_profile(dm_user.id)
+        dm_display_name = dm_profile['preferred_dm_name'] if dm_profile else dm_user.name
+
         # Show modal or message to continue
         dm_mention = dm_user.mention if dm_user.id != interaction.user.id else "You"
         await interaction.response.send_message(
             f"Setting up quest **{quest_name}** ({quest_type})\n"
             f"Level Bracket: {level_bracket}\n"
             f"Start date: {quest_start_date}\n"
-            f"Primary DM: {dm_mention}\n\n"
+            f"Primary DM: {dm_mention} ({dm_display_name})\n\n"
             f"Use `/quest_add_pc` to add player characters to this quest.\n"
-            f"Use `/quest_add_dm` to add additional DMs.",
+            f"Use `/quest_add_dm` to add additional DMs.\n"
+            f"Use `/dm_profile_set` to change your DM display name.",
             ephemeral=True
         )
 
@@ -203,7 +209,8 @@ def setup_quest_commands(bot, db, guild_id):
                 quest_type.strip(),
                 level_bracket,
                 quest_start_date,
-                dm_user.id
+                dm_user.id,
+                dm_display_name
             )
             logger.info(f"Quest '{quest_name}' (ID: {quest_id}) created by user {interaction.user.id}, primary DM: {dm_user.id}")
 
@@ -436,14 +443,32 @@ def setup_quest_commands(bot, db, guild_id):
             )
             return
 
+        # Get DM's profile or use their Discord username
+        dm_profile = await db.get_dm_profile(dm_user.id)
+        dm_display_name = dm_profile['preferred_dm_name'] if dm_profile else dm_user.name
+
         # Add DM
         try:
-            await db.add_quest_dm(quest['id'], dm_user.id, is_primary=False)
+            await db.add_quest_dm(quest['id'], dm_user.id, dm_display_name, is_primary=False)
             await interaction.response.send_message(
-                f"Added **{dm_user.display_name}** as DM to quest **{quest_name}**",
+                f"Added **{dm_user.mention}** as DM to quest **{quest_name}**\n"
+                f"Display Name: {dm_display_name}\n\n"
+                f"They can use `/dm_profile_set` to update their DM name globally.",
                 ephemeral=True
             )
-            logger.info(f"Added DM {dm_user.id} to quest {quest['id']}")
+            logger.info(f"Added DM {dm_user.id} ({dm_display_name}) to quest {quest['id']}")
+
+            # Try to DM the user to notify them
+            try:
+                await dm_user.send(
+                    f"You've been added as DM to quest **{quest_name}**!\n"
+                    f"Display Name: **{dm_display_name}**\n\n"
+                    f"Use `/dm_profile_set` to update your preferred DM name."
+                )
+            except discord.Forbidden:
+                # User has DMs disabled, that's okay
+                pass
+
         except Exception as e:
             logger.error(f"Error adding DM to quest: {e}")
             await interaction.response.send_message(
