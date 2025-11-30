@@ -220,6 +220,12 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route('/health')
+def health():
+    """Health check endpoint for Fly.io"""
+    return 'OK', 200
+
+
 @app.route('/')
 @require_auth
 def index():
