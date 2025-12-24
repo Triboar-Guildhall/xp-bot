@@ -11,9 +11,14 @@ logger = logging.getLogger('xp-bot')
 
 def setup_events(bot, db, guild_id):
     """Register event handlers with the bot"""
+    logger.info(f"Setting up events for guild_id={guild_id}")
 
     @bot.event
     async def on_ready():
+        # Log guilds the bot can see
+        logger.info(f"Bot is in {len(bot.guilds)} guilds:")
+        for g in bot.guilds:
+            logger.info(f"  - {g.name} (ID: {g.id})")
         logger.info(f"Bot '{bot.user.name}' is online")
 
         # Connect to database
@@ -50,10 +55,17 @@ def setup_events(bot, db, guild_id):
     @bot.event
     async def on_message(message):
         """Check each message to see if it should be awarded RP XP"""
+        # Debug: log all messages to see if events are being received
+        print(f"[MESSAGE] channel={message.channel.id}, author={message.author.name}, bot={message.author.bot}", flush=True)
+        logger.info(f"Message received: channel={message.channel.id}, author={message.author.name}, bot={message.author.bot}")
+
         config = await db.get_config(guild_id)
+        rp_channels = config.get("rp_channels", [])
+
+        logger.info(f"Config guild_id={guild_id}, rp_channels count={len(rp_channels)}, channel in list={message.channel.id in rp_channels}")
 
         # RP tracking (user messages)
-        if not message.author.bot and message.channel.id in config.get("rp_channels", []):
+        if not message.author.bot and message.channel.id in rp_channels:
             user_id = message.author.id
             await db.ensure_user(user_id)
 

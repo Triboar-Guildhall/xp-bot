@@ -64,6 +64,13 @@ setup_dm_profile_commands(bot, db, GUILD_ID)
 
 logger.info("All commands and handlers registered")
 
+# Simple test event to verify on_message works
+@bot.event
+async def on_message(message):
+    print(f"[BOT.PY MESSAGE] {message.channel.id} - {message.author.name}: {message.content[:50]}", flush=True)
+    logger.info(f"[BOT.PY] Message from {message.author.name} in {message.channel.id}")
+    await bot.process_commands(message)
+
 # Run the bot
 if __name__ == "__main__":
     logger.info("Starting XP Bot...")

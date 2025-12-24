@@ -15,14 +15,29 @@ class ChannelDropdown(discord.ui.Select):
         self.guild_id = guild_id
         current_channel_ids = current_channel_ids or []
 
+        # Get guild and filter to only text channels in THIS guild
+        guild = bot.get_guild(guild_id)
+        if guild:
+            channels = [ch for ch in guild.channels if isinstance(ch, discord.TextChannel)]
+        else:
+            channels = []
+
+        # Sort by name and limit to 25 (Discord's max for select menus)
+        channels = sorted(channels, key=lambda c: c.name)[:25]
+
         options = [
             discord.SelectOption(
-                label=ch.name,
+                label=ch.name[:100],  # Discord label max is 100 chars
                 value=str(ch.id),
                 default=(ch.id in current_channel_ids)
             )
-            for ch in bot.get_all_channels() if isinstance(ch, discord.TextChannel)
+            for ch in channels
         ]
+
+        # Discord requires at least 1 option
+        if not options:
+            options = [discord.SelectOption(label="No channels available", value="none")]
+
         super().__init__(
             placeholder=f"Select {label} channels...",
             min_values=0,
@@ -31,7 +46,8 @@ class ChannelDropdown(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        channel_ids = [int(v) for v in self.values]
+        # Filter out placeholder "none" value
+        channel_ids = [int(v) for v in self.values if v != "none"]
         if self.target_key == "rp_channels":
             await self.db.update_config(self.guild_id, rp_channels=channel_ids)
         await interaction.response.send_message(f"✅ Updated `{self.target_key}`.", ephemeral=True)
