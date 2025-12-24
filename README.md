@@ -34,11 +34,15 @@ Built with Python, Discord.py, and PostgreSQL.
 - Daily XP caps to prevent grinding
 - Character buffer system for partial XP accumulation
 
-### HF (Hunting/Foraging) Tracking
-- Automatic XP from bot-generated hunting/foraging activities
-- Configurable XP for attempts and successes
-- Separate daily caps for HF activities
-- Smart character name disambiguation for duplicate names
+### Quest Management
+- Track quests with types: Campaign, Mission, Colosseum, Battle
+- Level brackets (3-4, 5-7, 8-10, 11-13, 14-16, 17-20)
+- Primary and additional DM assignments
+- PC participant tracking with starting level/XP snapshots
+- Monster/encounter CR tracking for automatic XP calculation
+- Players can self-join quests (with level bracket validation)
+- Quest completion locks the quest and preserves history
+- View active and completed quest history
 
 ### Admin Features
 - Channel-based XP tracking configuration
@@ -135,20 +139,38 @@ That's it! The bot should now be online.
 | `/xp_purge` | **Permanently** delete user and all their data (GDPR) | `/xp_purge user:@Player` |
 | `/xp_add_rp_channel` | Enable RP tracking in channel | `/xp_add_rp_channel channel:#rp` |
 | `/xp_remove_rp_channel` | Disable RP tracking | `/xp_remove_rp_channel channel:#rp` |
-| `/xp_add_hf_channel` | Enable HF tracking | `/xp_add_hf_channel channel:#hunting` |
-| `/xp_remove_hf_channel` | Disable HF tracking | `/xp_remove_hf_channel channel:#hunting` |
-| `/xp_set_cap` | Set daily RP XP cap | `/xp_set_cap amount:10` |
-| `/xp_config_hf` | Configure HF XP rates | `/xp_config_hf attempt_xp:1 success_xp:5 daily_cap:10` |
 | `/xp_add_admin_role` | Add role with XP admin permissions | `/xp_add_admin_role role:@GameMaster` |
 | `/xp_remove_admin_role` | Remove XP admin permissions | `/xp_remove_admin_role role:@GameMaster` |
 | `/xp_list_admin_roles` | List roles with XP admin permissions | `/xp_list_admin_roles` |
 | `/xp_set_log_channel` | Set channel for XP activity logging | `/xp_set_log_channel channel:#xp-log` |
+| `/xp_settings` | Interactive settings UI (RP config, channels) | `/xp_settings` |
+
+### Quest Commands (DM)
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/quest_start` | Start a new quest | `/quest_start quest_name:"Dragon Hunt" quest_type:Mission level_bracket:5-7` |
+| `/quest_add_pc` | Add a PC to an active quest | `/quest_add_pc quest_name:"Dragon Hunt" character:Luna` |
+| `/quest_remove_pc` | Remove a PC from an active quest | `/quest_remove_pc quest_name:"Dragon Hunt" character:Luna` |
+| `/quest_add_dm` | Add an additional DM to a quest | `/quest_add_dm quest_name:"Dragon Hunt" dm_user:@GameMaster` |
+| `/quest_add_monster` | Add monster/encounter for XP calculation | `/quest_add_monster quest_name:"Dragon Hunt" cr:5 count:2 monster_name:"Young Dragon"` |
+| `/quest_end` | Complete a quest (locks it) | `/quest_end quest_name:"Dragon Hunt"` |
+| `/quest_delete` | Delete an active quest | `/quest_delete quest_name:"Dragon Hunt"` |
+
+### Quest Commands (Player)
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `/quest_join` | Join an active quest with your character | `/quest_join quest_name:"Dragon Hunt" character:Luna` |
+| `/quest_info` | View details of an active quest | `/quest_info quest_name:"Dragon Hunt"` |
+| `/quest_list` | List all active quests | `/quest_list` |
+| `/quest_list_completed` | List all completed quests | `/quest_list_completed` |
+| `/quest_info_completed` | View details of a completed quest | `/quest_info_completed quest_name:"Dragon Hunt"` |
 
 ### Legacy Commands
 
 | Command | Description |
 |---------|-------------|
-| `!xpsettings` | Interactive settings UI (buttons & modals) |
 | `!sync` | Sync commands to current guild |
 
 ---
@@ -680,10 +702,8 @@ After deployment:
 
 **config** - Guild-wide settings
 - `rp_channels[]` - RP tracking channels
-- `hf_channels[]` - HF tracking channels
 - `char_per_rp` - Characters needed per XP
 - `daily_rp_cap` - Daily RP XP limit
-- `hf_attempt_xp`, `hf_success_xp`, `daily_hf_cap` - HF settings
 
 **users** - Discord users
 - `user_id` (PK) - Discord user ID
@@ -696,33 +716,59 @@ After deployment:
 - `user_id` (FK) - Owner's Discord ID
 - `name` - Character name (unique per user)
 - `xp` - Total XP
-- `daily_xp`, `daily_hf` - Daily counters
+- `daily_xp` - Daily XP counter
 - `char_buffer` - Partial XP accumulator
 - `image_url` - Character image
 
-#---
+**quests** - Quest tracking
+- `id` (PK) - Auto-increment ID
+- `guild_id` - Discord server ID
+- `name` - Quest name
+- `quest_type` - Type (Campaign, Mission, Colosseum, Battle)
+- `level_bracket` - Level range (e.g., "5-7")
+- `status` - active/completed
+- `start_date`, `end_date` - Quest timeline
+
+**quest_participants** - Characters in quests
+- `quest_id` (FK), `character_id` (FK) - Composite PK
+- `starting_level`, `starting_xp` - Snapshot at join time
+
+**quest_dms** - DMs assigned to quests
+- `quest_id` (FK), `user_id` - DM assignments
+- `is_primary` - Primary DM flag
+
+**quest_monsters** - Encounters for XP calculation
+- `quest_id` (FK) - Parent quest
+- `cr` - Challenge Rating
+- `monster_name` - Optional name
+- `count` - Number of monsters
+
+---
 
 ## Code Structure
 
 ```
 xp-bot/
-├── bot.py                    # Main entry point (62 lines)
+├── bot.py                    # Main entry point
 ├── database.py               # Database layer with asyncpg
 ├── schema.sql                # PostgreSQL schema
 ├── commands/                 # Slash commands by category
-│   ├── character.py          # Character management (161 lines)
-│   ├── admin.py              # Admin configuration (177 lines)
-│   └── info.py               # Help and info (69 lines)
+│   ├── character.py          # Character management
+│   ├── admin.py              # Admin configuration
+│   ├── info.py               # Help and info
+│   └── quest.py              # Quest management commands
 ├── handlers/                 # Event and error handlers
-│   ├── events.py             # on_ready, on_message (160 lines)
-│   └── errors.py             # Error handling (62 lines)
+│   ├── events.py             # on_ready, on_message
+│   └── errors.py             # Error handling
 ├── ui/                       # Discord UI components
-│   ├── modals.py             # Configuration modals (88 lines)
-│   └── views.py              # Buttons and dropdowns (74 lines)
+│   ├── modals.py             # Configuration modals
+│   ├── views.py              # Buttons and dropdowns
+│   └── quest_view.py         # Quest confirmation views
 └── utils/                    # Utility functions
-    ├── validation.py         # Input validation (121 lines)
-    ├── xp.py                 # XP calculations (59 lines)
-    └── permissions.py        # Permission checks (8 lines)
+    ├── validation.py         # Input validation
+    ├── xp.py                 # XP calculations
+    ├── quest_xp.py           # Quest XP from CR
+    └── permissions.py        # Permission checks
 ```
 
 ---

@@ -421,24 +421,6 @@ def setup_admin_commands(bot, db, guild_id):
         await db.remove_rp_channel(guild_id, channel.id)
         await interaction.response.send_message(f"🚫 RP XP tracking disabled in {channel.mention}.", ephemeral=True)
 
-    @bot.tree.command(name="xp_set_cap")
-    @app_commands.describe(amount="New daily XP cap")
-    @app_commands.checks.cooldown(3, 60.0, key=lambda i: i.user.id)
-    async def xp_set_cap(interaction: discord.Interaction, amount: int):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ Admin only.", ephemeral=True)
-            return
-
-        # Validate daily cap
-        is_valid, error_msg = validate_daily_cap(amount)
-        if not is_valid:
-            await interaction.response.send_message(f"❌ {error_msg}", ephemeral=True)
-            logger.debug(f"Invalid daily cap {amount} from admin {interaction.user.id}")
-            return
-
-        await db.update_config(guild_id, daily_rp_cap=amount)
-        await interaction.response.send_message(f"✅ Daily XP cap set to {amount}.", ephemeral=True)
-
     @bot.tree.command(name="xp_add_admin_role", description="Add a role that can create characters and grant XP")
     @app_commands.describe(role="Role to grant admin permissions (character creation and XP granting)")
     @app_commands.checks.cooldown(5, 60.0, key=lambda i: i.user.id)
@@ -503,22 +485,21 @@ def setup_admin_commands(bot, db, guild_id):
             ephemeral=True
         )
 
-    @bot.command(name="xpsettings")
-    async def xpsettings(ctx):
-        """Legacy prefix command for XP settings UI"""
-        if not ctx.author.guild_permissions.administrator:
-            await ctx.send("❌ Admin only.")
+    @bot.tree.command(name="xp_settings", description="(Admin) Configure XP bot settings")
+    @app_commands.checks.cooldown(3, 60.0, key=lambda i: i.user.id)
+    async def xp_settings(interaction: discord.Interaction):
+        """Admin settings UI for XP bot configuration"""
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ Admin only.", ephemeral=True)
             return
 
         config = await db.get_config(guild_id)
         rp_channels = ", ".join(f"<#{cid}>" for cid in config.get("rp_channels", [])) or "None"
-        survival_channels = ", ".join(f"<#{cid}>" for cid in config.get("survival_channels", [])) or "None (monitors all channels)"
 
         embed = discord.Embed(title="XP Bot Settings Overview")
         embed.add_field(name="RP Settings", value=f"Channels: {rp_channels}\nChars per XP: {config['char_per_rp']}\nDaily RP Cap: {config['daily_rp_cap']}", inline=False)
-        embed.add_field(name="Prized Species Settings", value=f"Monitor Channels: {survival_channels}", inline=False)
 
-        await ctx.send(embed=embed, view=XPSettingsView(bot, db, guild_id))
+        await interaction.response.send_message(embed=embed, view=XPSettingsView(bot, db, guild_id), ephemeral=True)
 
     @bot.command(name="sync")
     async def sync(ctx):

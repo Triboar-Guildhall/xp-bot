@@ -65,6 +65,5 @@ def setup_info_commands(bot, db, guild_id):
         embed.add_field(name="/xp_purge", value="(Admin) Permanently delete a user and all their data (GDPR).", inline=False)
         embed.add_field(name="/xp_add_rp_channel / /xp_remove_rp_channel", value="(Admin) Enable or disable RP XP tracking.", inline=False)
         embed.add_field(name="/xp_tracking", value="List channels where XP tracking is enabled.", inline=False)
-        embed.add_field(name="/xp_set_cap", value="(Admin) Set the daily XP cap.", inline=False)
         embed.add_field(name="/xp_set_timezone", value="Set your personal XP reset timezone.", inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
